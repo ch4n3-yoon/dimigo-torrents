@@ -53,7 +53,7 @@ def jsonize(data):
     return json.dumps(data, sort_keys=True, indent=4)
 
 def main():
-    dimigo_ips = ['121.170.91.194', '121.170.91.130']
+    dimigo_ips = ['121.170.91.194', '121.170.91.130', '207.189.31.198']
     torrents = []
     for ip in dimigo_ips:
         tmp = getTorrents(ip)
