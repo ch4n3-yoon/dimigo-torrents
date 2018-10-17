@@ -1,12 +1,13 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # coding: utf-8
 
-import requests
+# import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
 import json
-import commands
+import subprocess
+from operator import itemgetter
 
 def stringToDatetime(data):
     # datetime.strptime('Jun 1 2005  1:33PM', '%b %d %Y %I:%M%p')
@@ -17,9 +18,9 @@ def stringToDatetime(data):
     return str(local_tz.normalize(local_dt)).replace("+09:00", " (KST)")
 
 def getContents(url):
-    (exitstatus, result) = commands.getstatusoutput("curl \"%s\"" % (url))
-    # print result
-    return result
+    # 한글 깨짐 현상 때문에 curl 라이브러리 이용
+    response = subprocess.getoutput("curl \"%s\"" % (url))
+    return response
 
 month = {
     'Jan': 1,
@@ -36,35 +37,46 @@ month = {
     'Dec': 12,
 }
 
+def getTorrents(ip):
+    url = 'https://iknowwhatyoudownload.com/en/peer/?ip=%s' % (ip)
+    soup = BeautifulSoup(getContents(url), 'lxml')
 
+    torrentFiles = soup.findAll('div', {'class': 'torrent_files'})
+    torrentSizes = soup.findAll('td', {'class': 'size-column'})
+    torrentTimes = soup.findAll('td', {'class': 'date-column'})
 
-url = 'https://iknowwhatyoudownload.com/en/peer/?ip=121.170.91.194'
+    results = []
 
-r = requests.get(url)
-# print(r.text)
-soup = BeautifulSoup(getContents(url), 'lxml')
+    i = 0
+    for torrentFile in torrentFiles:
+        try:
+            tmp_data = {
+                'title': torrentFile.get_text().strip(),
+                'size': torrentSizes[i].get_text().strip(),
+                'firstTime': stringToDatetime(torrentTimes[i * 2].get_text().strip()),
+                'lastTime': stringToDatetime(torrentTimes[i * 2 + 1].get_text().strip()),
+            }
+        except:
+            pass
 
-torrentFiles = soup.findAll('div', {'class': 'torrent_files'})
-torrentSizes = soup.findAll('td', {'class': 'size-column'})
-torrentTimes = soup.findAll('td', {'class': 'date-column'})
+        results.append(tmp_data)
+        i += 1
 
-results = []
+    return results
 
-i = 0
-for torrentFile in torrentFiles:
+def jsonize(data):
+    return json.dumps(data, sort_keys=True, indent=4)
 
-    try:
-        tmpData = {
-            'title': torrentFile.get_text().strip(),
-            'size': torrentSizes[i].get_text().strip(),
-            'firstTime': stringToDatetime(torrentTimes[i * 2].get_text().strip()),
-            'lastTime': stringToDatetime(torrentTimes[i * 2 + 1].get_text().strip()),
-        }
-    except:
-        pass
+def main():
+    dimigo_ips = ['121.170.91.194', '121.170.91.130']
+    torrents = []
+    for ip in dimigo_ips:
+        tmp = getTorrents(ip)
+        for t in tmp:
+            torrents.append(t)
 
-    results.append(tmpData)
+    torrents = sorted(torrents, key=itemgetter('firstTime'), reverse=True)
+    print(jsonize(torrents))
 
-    i += 1
-
-print(json.dumps(results, sort_keys=True, indent=4))
+if __name__ == '__main__':
+    main()
